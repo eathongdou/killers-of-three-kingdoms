@@ -2,313 +2,422 @@
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>三国杀 Three Kingdoms Kill</title>
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+<title>三国杀</title>
 <style>
-  html,body { height:100%; margin:0; }
-  body {
-    background:#0d0d0d; color:#e6e6e6;
-    font-family:"Courier New",Consolas,monospace;
-    font-size:15px; line-height:1.55;
-    padding:16px; box-sizing:border-box;
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    margin: 0; padding: 0;
+    background: #1a1a1a;
+    color: #e0e0e0;
+    font-family: -apple-system, BlinkMacSystemFont, "Microsoft YaHei", sans-serif;
+    min-height: 100vh;
+  }
+  #app {
+    max-width: 700px; margin: 0 auto; padding: 12px;
+    display: flex; flex-direction: column; gap: 10px; min-height: 100vh;
+  }
+  #topbar {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 6px 0; font-weight: bold;
+  }
+  #topbar .round { color: #7fd6ff; }
+  #restart {
+    background: #333; color: #ccc; border: 1px solid #555;
+    padding: 4px 12px; border-radius: 4px; cursor: pointer; font-size: 13px;
+  }
+  #restart:hover { background: #444; }
+
+  .panel {
+    background: #242424; border-radius: 8px; padding: 10px 12px;
+    display: flex; align-items: center; gap: 12px;
+  }
+  .panel.ai { border-left: 3px solid #ff6b6b; }
+  .panel.player { border-left: 3px solid #4ecdc4; }
+  .avatar { font-size: 28px; }
+  .panel-info { flex: 1; }
+  .panel-name { font-weight: bold; font-size: 14px; }
+  .panel-hp { color: #ff9a9a; font-size: 13px; margin-top: 2px; }
+  .panel-hand-count { color: #999; font-size: 12px; }
+
+  #log {
+    background: #151515; border-radius: 8px; padding: 10px;
+    height: 220px; overflow-y: auto;
+    font-size: 13px; line-height: 1.6;
+  }
+  .log-line { margin-bottom: 2px; }
+  .log-info { color: #7fd6ff; }
+  .log-action { color: #fff; }
+  .log-damage { color: #ff6b6b; font-weight: bold; }
+  .log-heal { color: #4ecdc4; }
+  .log-warn { color: #ffb74d; }
+  .log-defense { color: #a78bfa; }
+  .log-draw { color: #999; }
+  .log-discard { color: #666; }
+
+  #hand-area {
+    display: flex; flex-wrap: wrap; gap: 6px;
+    justify-content: center; padding: 6px 0; min-height: 80px;
+  }
+  .card {
+    width: 62px; height: 84px;
+    background: linear-gradient(145deg, #3a3a3a, #2a2a2a);
+    border: 2px solid #444; border-radius: 8px;
     display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    cursor: pointer; transition: all 0.15s; user-select: none;
   }
-  #header { color:#7fd6ff; font-weight:bold; margin-bottom:12px; }
-  #startBtn {
-    background:#7fd6ff; color:#000; border:none; padding:10px 20px;
-    font-size:16px; font-weight:bold; cursor:pointer; border-radius:6px;
-    margin-bottom:15px; align-self: flex-start;
+  .card .card-icon { font-size: 22px; }
+  .card .card-name { font-size: 11px; margin-top: 4px; color: #ddd; }
+  .card.playable { border-color: #4ecdc4; box-shadow: 0 0 6px rgba(78,205,196,0.3); }
+  .card.playable:hover { transform: translateY(-4px); background: linear-gradient(145deg, #4a4a4a, #333); }
+  .card.disabled { opacity: 0.45; cursor: not-allowed; }
+  .card.discardable { border-color: #ff6b6b; animation: pulse 1.2s infinite; }
+  .card.discardable:hover { transform: translateY(-4px); }
+  @keyframes pulse {
+    0%, 100% { box-shadow: 0 0 6px rgba(255,107,107,0.4); }
+    50% { box-shadow: 0 0 14px rgba(255,107,107,0.8); }
   }
-  #startBtn:disabled { background:#555; cursor:not-allowed; }
-  #output {
-    white-space:pre-wrap; word-break:break-word;
-    flex:1; overflow-y:auto; border:1px solid #333; padding:10px;
-    border-radius:6px; background:#111;
+
+  #bottom-bar {
+    display: flex; justify-content: space-between; align-items: center;
+    gap: 10px; padding: 6px 0;
+  }
+  #hint { color: #999; font-size: 13px; flex: 1; }
+  #endTurn {
+    background: #4ecdc4; color: #000; border: none;
+    padding: 10px 24px; border-radius: 6px;
+    font-weight: bold; cursor: pointer; font-size: 14px;
+  }
+  #endTurn:disabled { background: #555; color: #888; cursor: not-allowed; }
+  #endTurn:not(:disabled):hover { background: #6ee0d8; }
+
+  @media (max-width: 500px) {
+    .card { width: 54px; height: 74px; }
+    .card .card-icon { font-size: 18px; }
+    .card .card-name { font-size: 10px; }
+    #log { height: 180px; font-size: 12px; }
   }
 </style>
 </head>
 <body>
-<div id="header">点击下方按钮开始游戏</div>
-<button id="startBtn">🎮 开始游戏</button>
-<div id="output"></div>
+<div id="app">
+  <div id="topbar">
+    <span class="round">第 <span id="roundNum">1</span> 回合</span>
+    <button id="restart">🔄 重开</button>
+  </div>
 
-<!-- ① 加载 Pyodide 运行时 -->
-<script src="https://cdn.jsdelivr.net/pyodide/v0.26.4/full/pyodide.js"></script>
+  <div class="panel ai">
+    <div class="avatar">🤖</div>
+    <div class="panel-info">
+      <div class="panel-name">电脑</div>
+      <div class="panel-hp">❤️ HP <span id="aiHp">4</span> / 4</div>
+      <div class="panel-hand-count">🃏 手牌 <span id="aiHandCount">0</span> 张</div>
+    </div>
+  </div>
 
-<!-- ② 你的游戏代码（原样粘贴） -->
-<script type="text/plain" id="pycode">
-import random
-import time
+  <div id="log"></div>
 
-CARD_POOL = {
-    "Slash": 30, "Dodge": 15, "Peach": 8,
-    "Ex Nihilo": 3, "Dismantle": 3, "Snatch": 3,
-    "Bounty": 2, "Brotherhood": 2
+  <div class="panel player">
+    <div class="avatar">🧑</div>
+    <div class="panel-info">
+      <div class="panel-name">你</div>
+      <div class="panel-hp">❤️ HP <span id="playerHp">4</span> / 4</div>
+    </div>
+  </div>
+
+  <div id="bottom-bar">
+    <div id="hint">准备开始...</div>
+    <button id="endTurn">结束回合</button>
+  </div>
+
+  <div id="hand-area"></div>
+</div>
+
+<script>
+// ==================== 常量 ====================
+const CARD_POOL = {
+  "Slash": 30, "Dodge": 15, "Peach": 8,
+  "Ex Nihilo": 3, "Dismantle": 3, "Snatch": 3,
+  "Bounty": 2, "Brotherhood": 2
+};
+
+const CARD_INFO = {
+  "Slash":      { icon: "🗡️", name: "杀", desc: "对敌人造成1点伤害" },
+  "Dodge":      { icon: "💨", name: "闪", desc: "抵消一次杀" },
+  "Peach":      { icon: "🍑", name: "桃", desc: "回复1点体力" },
+  "Ex Nihilo":  { icon: "✨", name: "无中生有", desc: "摸两张牌" },
+  "Dismantle":  { icon: "🔨", name: "拆", desc: "弃置敌人一张牌" },
+  "Snatch":     { icon: "🫴", name: "顺", desc: "获得敌人一张牌" },
+  "Bounty":     { icon: "🎁", name: "赏", desc: "双方各摸一张牌" },
+  "Brotherhood":{ icon: "🤝", name: "结", desc: "双方各回复1点体力" }
+};
+
+// ==================== 状态 ====================
+let state = null;
+let logEl, handEl, endTurnBtn, hintEl;
+
+// ==================== 工具函数 ====================
+function shuffle(arr) {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+}
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+function drawCards(who, n) {
+  for (let i = 0; i < n; i++) {
+    if (state.deck.length === 0) {
+      if (state.discard.length === 0) break;
+      state.deck = state.discard.slice();
+      state.discard = [];
+      shuffle(state.deck);
+    }
+    who.hand.push(state.deck.pop());
+  }
 }
 
-class Player:
-    def __init__(self, name, is_ai=False):
-        self.name = name
-        self.is_ai = is_ai
-        self.hp = 4
-        self.max_hp = 4
-        self.hand = []
+function log(text, type = "normal") {
+  const line = document.createElement('div');
+  line.className = 'log-line log-' + type;
+  line.textContent = text;
+  logEl.appendChild(line);
+  logEl.scrollTop = logEl.scrollHeight;
+}
+function clearLog() { logEl.innerHTML = ''; }
 
-    def is_alive(self):
-        return self.hp > 0
+// ==================== 渲染 ====================
+function render() {
+  document.getElementById('roundNum').textContent = state.round;
+  document.getElementById('aiHp').textContent = Math.max(0, state.ai.hp);
+  document.getElementById('aiHandCount').textContent = state.ai.hand.length;
+  document.getElementById('playerHp').textContent = Math.max(0, state.player.hp);
 
-    def show_status(self):
-        if self.is_ai:
-            return f"[{self.name}] HP: {self.hp}/{self.max_hp} | Hand: {len(self.hand)} cards"
-        else:
-            return f"[{self.name}] HP: {self.hp}/{self.max_hp} | Hand: {self.hand}"
+  handEl.innerHTML = '';
+  state.player.hand.forEach((card, idx) => {
+    const info = CARD_INFO[card];
+    const el = document.createElement('div');
+    el.className = 'card';
+    el.title = info.desc;
+    el.innerHTML = `<div class="card-icon">${info.icon}</div><div class="card-name">${info.name}</div>`;
 
+    if (state.discardMode) {
+      el.classList.add('discardable');
+    } else if (state.turn === 'player') {
+      const invalid =
+        card === "Dodge" ||
+        (card === "Slash" && state.hasSlashed) ||
+        (card === "Peach" && state.player.hp >= state.player.maxHp);
+      el.classList.add(invalid ? 'disabled' : 'playable');
+    } else {
+      el.classList.add('disabled');
+    }
 
-class CardGame:
-    def __init__(self):
-        self.deck = self.init_deck()
-        self.discard_pile = []
-        self.player = Player("Player 1", is_ai=False)
-        self.ai = Player("Computer (AI)", is_ai=True)
-        self.round_count = 1
+    el.onclick = () => onCardClick(idx);
+    handEl.appendChild(el);
+  });
 
-    def init_deck(self):
-        deck = []
-        for card, count in CARD_POOL.items():
-            deck.extend([card] * count)
-        random.shuffle(deck)
-        return deck
+  endTurnBtn.disabled = state.turn !== 'player' || state.discardMode;
 
-    def draw_cards(self, character, num):
-        for _ in range(num):
-            if not self.deck:
-                if not self.discard_pile:
-                    break
-                self.deck = self.discard_pile.copy()
-                random.shuffle(self.deck)
-                self.discard_pile.clear()
+  if (state.turn === 'over') {
+    hintEl.textContent = state.player.hp > 0 ? '🎉 你赢了！' : '💀 你输了...';
+  } else if (state.discardMode) {
+    hintEl.textContent = `⚠️ 请点击弃置 ${state.player.hand.length - state.player.hp} 张手牌`;
+  } else if (state.turn === 'player') {
+    hintEl.textContent = '你的回合 — 点击手牌使用';
+  } else if (state.turn === 'ai') {
+    hintEl.textContent = '电脑的回合...';
+  }
+}
 
-            if self.deck:
-                card = self.deck.pop()
-                character.hand.append(card)
-
-    def print_board(self):
-        print("\n" + "="*50)
-        print(self.ai.show_status())
-        print(self.player.show_status())
-        print("="*50)
-
-    def check_discard_phase(self, character):
-        if len(character.hand) > character.hp:
-            excess = len(character.hand) - character.hp
-            print(f"\n--- Discard Phase for {character.name} ---")
-
-            for _ in range(excess):
-                if character.is_ai:
-                    discarded = character.hand.pop(random.randint(0, len(character.hand) - 1))
-                    self.discard_pile.append(discarded)
-                else:
-                    while True:
-                        print(f"Your current hand: {character.hand}")
-                        idx_input = input(f"Choose a card index to discard (1-{len(character.hand)}): ")
-                        if idx_input.isdigit() and 1 <= int(idx_input) <= len(character.hand):
-                            discarded = character.hand.pop(int(idx_input) - 1)
-                            self.discard_pile.append(discarded)
-                            break
-            time.sleep(1)
-
-    def play_card_logic(self, user, target, card_name):
-        print(f"\n[ACTION] {user.name} plays: {card_name}")
-        self.discard_pile.append(card_name)
-
-        if card_name == "Slash":
-            if "Dodge" in target.hand:
-                target.hand.remove("Dodge")
-                self.discard_pile.append("Dodge")
-                print(f"-> {target.name} countered with Dodge!")
-            else:
-                target.hp -= 1
-                print(f"-> {target.name} takes 1 Damage.")
-
-        elif card_name == "Peach":
-            user.hp = min(user.hp + 1, user.max_hp)
-            print(f"-> {user.name} recovered 1 HP.")
-
-        elif card_name == "Ex Nihilo":
-            self.draw_cards(user, 2)
-
-        elif card_name == "Dismantle":
-            if target.hand:
-                removed = target.hand.pop(random.randint(0, len(target.hand) - 1))
-                self.discard_pile.append(removed)
-                print(f"-> Dismantled 1 card from {target.name}'s hand.")
-
-        elif card_name == "Snatch":
-            if target.hand:
-                stolen = target.hand.pop(random.randint(0, len(target.hand) - 1))
-                user.hand.append(stolen)
-                print(f"-> Snatched 1 card from {target.name}.")
-
-        elif card_name == "Bounty":
-            self.draw_cards(user, 1)
-            self.draw_cards(target, 1)
-
-        elif card_name == "Brotherhood":
-            if user.hp < user.max_hp: user.hp += 1
-            if target.hp < target.max_hp: target.hp += 1
-
-    def start_game(self):
-        print("Welcome to Three Kingdoms Kill!")
-        self.draw_cards(self.player, 5)
-        self.draw_cards(self.ai, 5)
-
-        while self.player.is_alive() and self.ai.is_alive():
-            print(f"\n>>>>>>> ROUND {self.round_count} <<<<<<<")
-
-            print(f"\n--- [ {self.player.name}'s Turn ] ---")
-            if self.round_count > 1:
-                self.draw_cards(self.player, 2)
-
-            has_slashed = False
-
-            while True:
-                self.print_board()
-                print("Options:\n [0] End Turn")
-                for idx, card in enumerate(self.player.hand):
-                    print(f" [{idx + 1}] {card}")
-
-                choice = input("Select a number to play: ")
-                if choice == "0":
-                    break
-
-                if not choice.isdigit() or not (1 <= int(choice) <= len(self.player.hand)):
-                    continue
-
-                chosen_card = self.player.hand[int(choice) - 1]
-
-                if chosen_card == "Dodge":
-                    print("[INVALID] Cannot play Dodge on your turn.")
-                    continue
-                if chosen_card == "Slash" and has_slashed:
-                    print("[INVALID] One Slash per turn.")
-                    continue
-                if chosen_card == "Peach" and self.player.hp == self.player.max_hp:
-                    print("[INVALID] HP is full.")
-                    continue
-
-                self.player.hand.pop(int(choice) - 1)
-                if chosen_card == "Slash":
-                    has_slashed = True
-
-                self.play_card_logic(self.player, self.ai, chosen_card)
-
-                if not self.ai.is_alive():
-                    break
-                time.sleep(1)
-
-            if not self.ai.is_alive(): break
-            self.check_discard_phase(self.player)
-
-            print(f"\n--- [ {self.ai.name}'s Turn ] ---")
-            time.sleep(1)
-            if self.round_count > 1:
-                self.draw_cards(self.ai, 2)
-
-            ai_has_slashed = False
-            ai_acting = True
-
-            while ai_acting and self.ai.is_alive():
-                if "Peach" in self.ai.hand and self.ai.hp < self.ai.max_hp:
-                    self.ai.hand.remove("Peach")
-                    self.play_card_logic(self.ai, self.player, "Peach")
-                elif "Ex Nihilo" in self.ai.hand:
-                    self.ai.hand.remove("Ex Nihilo")
-                    self.play_card_logic(self.ai, self.player, "Ex Nihilo")
-                elif "Slash" in self.ai.hand and not ai_has_slashed:
-                    self.ai.hand.remove("Slash")
-                    ai_has_slashed = True
-                    self.play_card_logic(self.ai, self.player, "Slash")
-                elif "Dismantle" in self.ai.hand:
-                    self.ai.hand.remove("Dismantle")
-                    self.play_card_logic(self.ai, self.player, "Dismantle")
-                elif "Snatch" in self.ai.hand:
-                    self.ai.hand.remove("Snatch")
-                    self.play_card_logic(self.ai, self.player, "Snatch")
-                else:
-                    ai_acting = False
-
-                if not self.player.is_alive():
-                    break
-                time.sleep(1.5)
-
-            if not self.player.is_alive(): break
-            self.check_discard_phase(self.ai)
-
-            self.round_count += 1
-
-        print("\n=================== GAME OVER ===================")
-        if self.player.is_alive():
-            print("[SUCCESS] Victory!")
-        else:
-            print("[DEFEAT] Game Over.")
-
-
-game = CardGame()
-game.start_game()
-</script>
-
-<!-- ③ 启动逻辑（优化版） -->
-<script>
-document.getElementById('startBtn').addEventListener('click', async () => {
-  const btn = document.getElementById('startBtn');
-  const header = document.getElementById('header');
-  const out = document.getElementById('output');
-
-  btn.disabled = true;
-  btn.innerText = '加载中...';
-  header.innerText = '正在加载 Pyodide，请稍候...';
-  out.innerHTML = '';
-
-  const write = s => {
-    out.textContent += s;
-    out.scrollTop = out.scrollHeight;
+// ==================== 游戏逻辑 ====================
+function resetGame() {
+  state = {
+    deck: [], discard: [],
+    player: { name: "你", hp: 4, maxHp: 4, hand: [] },
+    ai: { name: "电脑", hp: 4, maxHp: 4, hand: [] },
+    round: 1, hasSlashed: false, discardMode: false, turn: 'player'
   };
 
-  try {
-    const pyodide = await loadPyodide({
-      indexURL: "https://cdn.jsdelivr.net/pyodide/v0.26.4/full/"
-    });
-
-    // 实时输出，不再缓冲
-    pyodide.setStdout({ write: write });
-    pyodide.setStderr({ write: (s) => write("[ERROR] " + s) });
-
-    // 接管 input()，并优化提示语
-    pyodide.runPython(`
-import builtins, js, time
-_orig_sleep = time.sleep
-def _input(prompt_text=""):
-    js.window.scrollTo(0, document.body.scrollHeight)
-    full_prompt = str(prompt_text) + "\\n\\n(若输入数字后无反应，可能是该牌当前不能打出，请换一个数字，或输入 0 结束回合)"
-    res = js.prompt(full_prompt)
-    if res is None: return "0"
-    return str(res)
-builtins.input = _input
-time.sleep = lambda s=0: _orig_sleep(min(s, 0.3))
-`);
-
-    header.innerText = '🎮 三国杀 · 输入数字后按回车（弹窗中输入）';
-    btn.style.display = 'none';
-
-    const code = document.getElementById('pycode').textContent;
-    await pyodide.runPythonAsync(code);
-
-  } catch (e) {
-    write("\n[ERROR] " + e);
-    console.error(e);
-    btn.disabled = false;
-    btn.innerText = '❌ 加载失败，点击重试';
+  for (const [card, count] of Object.entries(CARD_POOL)) {
+    for (let i = 0; i < count; i++) state.deck.push(card);
   }
+  shuffle(state.deck);
+  drawCards(state.player, 5);
+  drawCards(state.ai, 5);
+
+  clearLog();
+  log("⚔️ 欢迎来到三国杀！", "info");
+  log("你的回合 — 点击手牌出牌，或点击「结束回合」", "info");
+  render();
+}
+
+function onCardClick(idx) {
+  if (state.turn !== 'player') return;
+
+  if (state.discardMode) {
+    const card = state.player.hand.splice(idx, 1)[0];
+    state.discard.push(card);
+    log(`你弃置了 ${CARD_INFO[card].name}`, "discard");
+    if (state.player.hand.length <= state.player.hp) {
+      state.discardMode = false;
+      render();
+      setTimeout(aiTurn, 400);
+    } else {
+      render();
+    }
+    return;
+  }
+
+  const card = state.player.hand[idx];
+  if (card === "Dodge") { log("⚠️ 闪不能主动打出", "warn"); return; }
+  if (card === "Slash" && state.hasSlashed) { log("⚠️ 每回合只能使用一次杀", "warn"); return; }
+  if (card === "Peach" && state.player.hp >= state.player.maxHp) { log("⚠️ 体力已满，不能使用桃", "warn"); return; }
+
+  playCard(state.player, state.ai, card);
+  if (card === "Slash") state.hasSlashed = true;
+  render();
+  if (state.ai.hp <= 0) { gameOver(); return; }
+}
+
+function endTurn() {
+  if (state.turn !== 'player' || state.discardMode) return;
+  if (state.player.hand.length > state.player.hp) {
+    state.discardMode = true;
+    log(`手牌上限为 ${state.player.hp}，请弃置 ${state.player.hand.length - state.player.hp} 张牌`, "warn");
+    render();
+    return;
+  }
+  aiTurn();
+}
+
+async function aiTurn() {
+  state.turn = 'ai';
+  render();
+  log(`--- 电脑回合 ---`, "info");
+  await sleep(500);
+
+  if (state.round > 1) {
+    drawCards(state.ai, 2);
+    log(`电脑摸了 2 张牌`, "info");
+    render();
+    await sleep(400);
+  }
+
+  let aiHasSlashed = false;
+  while (true) {
+    if (state.ai.hp < state.ai.maxHp && state.ai.hand.includes("Peach")) {
+      playCard(state.ai, state.player, "Peach");
+    } else if (state.ai.hand.includes("Ex Nihilo")) {
+      playCard(state.ai, state.player, "Ex Nihilo");
+    } else if (!aiHasSlashed && state.ai.hand.includes("Slash")) {
+      aiHasSlashed = true;
+      playCard(state.ai, state.player, "Slash");
+    } else if (state.ai.hand.includes("Dismantle")) {
+      playCard(state.ai, state.player, "Dismantle");
+    } else if (state.ai.hand.includes("Snatch")) {
+      playCard(state.ai, state.player, "Snatch");
+    } else {
+      break;
+    }
+    render();
+    await sleep(700);
+    if (state.player.hp <= 0 || state.ai.hp <= 0) break;
+  }
+
+  if (state.player.hp <= 0) { gameOver(); return; }
+
+  if (state.ai.hand.length > state.ai.hp) {
+    const discards = state.ai.hand.length - state.ai.hp;
+    for (let i = 0; i < discards; i++) {
+      const idx = Math.floor(Math.random() * state.ai.hand.length);
+      state.discard.push(state.ai.hand.splice(idx, 1)[0]);
+    }
+    log(`电脑弃置了 ${discards} 张牌`, "info");
+    render();
+    await sleep(300);
+  }
+
+  state.round++;
+  state.hasSlashed = false;
+  state.turn = 'player';
+  drawCards(state.player, 2);
+  log(`你摸了 2 张牌`, "info");
+  log(`第 ${state.round} 回合 - 你的回合`, "info");
+  render();
+}
+
+function playCard(user, target, card) {
+  const i = user.hand.indexOf(card);
+  if (i >= 0) user.hand.splice(i, 1);
+  state.discard.push(card);
+
+  const info = CARD_INFO[card];
+  log(`${user.name} 使用了 ${info.name} ${info.icon}`, "action");
+
+  switch (card) {
+    case "Slash":
+      if (target.hand.includes("Dodge")) {
+        target.hand.splice(target.hand.indexOf("Dodge"), 1);
+        state.discard.push("Dodge");
+        log(`  ${target.name} 使用闪抵消`, "defense");
+      } else {
+        target.hp -= 1;
+        log(`  ${target.name} 受到 1 点伤害`, "damage");
+      }
+      break;
+    case "Peach":
+      user.hp = Math.min(user.hp + 1, user.maxHp);
+      log(`  ${user.name} 回复 1 点体力`, "heal");
+      break;
+    case "Ex Nihilo":
+      drawCards(user, 2);
+      log(`  ${user.name} 摸了 2 张牌`, "draw");
+      break;
+    case "Dismantle":
+      if (target.hand.length > 0) {
+        const ri = Math.floor(Math.random() * target.hand.length);
+        state.discard.push(target.hand.splice(ri, 1)[0]);
+        log(`  弃置了 ${target.name} 的一张牌`, "action");
+      } else log(`  ${target.name} 没有手牌`, "warn");
+      break;
+    case "Snatch":
+      if (target.hand.length > 0) {
+        const ri = Math.floor(Math.random() * target.hand.length);
+        user.hand.push(target.hand.splice(ri, 1)[0]);
+        log(`  获得了 ${target.name} 的一张牌`, "action");
+      } else log(`  ${target.name} 没有手牌`, "warn");
+      break;
+    case "Bounty":
+      drawCards(user, 1); drawCards(target, 1);
+      log(`  双方各摸 1 张牌`, "draw");
+      break;
+    case "Brotherhood":
+      if (user.hp < user.maxHp) user.hp++;
+      if (target.hp < target.maxHp) target.hp++;
+      log(`  双方各回复 1 点体力`, "heal");
+      break;
+  }
+}
+
+function gameOver() {
+  state.turn = 'over';
+  render();
+  log(`===================`, "info");
+  log(state.player.hp > 0 ? `🎉 胜利！` : `💀 失败...`, state.player.hp > 0 ? "info" : "damage");
+}
+
+// ==================== 初始化 ====================
+window.addEventListener('DOMContentLoaded', () => {
+  logEl = document.getElementById('log');
+  handEl = document.getElementById('hand-area');
+  endTurnBtn = document.getElementById('endTurn');
+  hintEl = document.getElementById('hint');
+
+  endTurnBtn.addEventListener('click', endTurn);
+  document.getElementById('restart').addEventListener('click', resetGame);
+  resetGame();
 });
 </script>
 </body>
