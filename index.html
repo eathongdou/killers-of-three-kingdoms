@@ -11,19 +11,31 @@
     font-family:"Courier New",Consolas,monospace;
     font-size:15px; line-height:1.55;
     padding:16px; box-sizing:border-box;
+    display: flex; flex-direction: column;
   }
   #header { color:#7fd6ff; font-weight:bold; margin-bottom:12px; }
-  #output { white-space:pre-wrap; word-break:break-word; }
+  #startBtn {
+    background:#7fd6ff; color:#000; border:none; padding:10px 20px;
+    font-size:16px; font-weight:bold; cursor:pointer; border-radius:6px;
+    margin-bottom:15px; align-self: flex-start;
+  }
+  #startBtn:disabled { background:#555; cursor:not-allowed; }
+  #output {
+    white-space:pre-wrap; word-break:break-word;
+    flex:1; overflow-y:auto; border:1px solid #333; padding:10px;
+    border-radius:6px; background:#111;
+  }
 </style>
 </head>
 <body>
-<div id="header">Loading Pyodide…（首次加载约 10MB，请稍候）</div>
+<div id="header">点击下方按钮开始游戏</div>
+<button id="startBtn">🎮 开始游戏</button>
 <div id="output"></div>
 
 <!-- ① 加载 Pyodide 运行时 -->
 <script src="https://cdn.jsdelivr.net/pyodide/v0.26.4/full/pyodide.js"></script>
 
-<!-- ② 你的游戏代码（原样粘贴，只把最后的 if __name__ 改成直接调用） -->
+<!-- ② 你的游戏代码（原样粘贴） -->
 <script type="text/plain" id="pycode">
 import random
 import time
@@ -245,14 +257,21 @@ game = CardGame()
 game.start_game()
 </script>
 
-<!-- ③ 启动逻辑 -->
+<!-- ③ 启动逻辑（优化版） -->
 <script>
-(async () => {
+document.getElementById('startBtn').addEventListener('click', async () => {
+  const btn = document.getElementById('startBtn');
   const header = document.getElementById('header');
-  const out    = document.getElementById('output');
-  const write  = s => {
+  const out = document.getElementById('output');
+
+  btn.disabled = true;
+  btn.innerText = '加载中...';
+  header.innerText = '正在加载 Pyodide，请稍候...';
+  out.innerHTML = '';
+
+  const write = s => {
     out.textContent += s;
-    window.scrollTo(0, document.body.scrollHeight);
+    out.scrollTop = out.scrollHeight;
   };
 
   try {
@@ -260,26 +279,26 @@ game.start_game()
       indexURL: "https://cdn.jsdelivr.net/pyodide/v0.26.4/full/"
     });
 
-    pyodide.setStdout({ batched: write });
-    pyodide.setStderr({ batched: write });
+    // 实时输出，不再缓冲
+    pyodide.setStdout({ write: write });
+    pyodide.setStderr({ write: (s) => write("[ERROR] " + s) });
 
-    // 把 Python 的 input() 接到浏览器弹窗；顺便缩短 sleep
+    // 接管 input()，并优化提示语
     pyodide.runPython(`
 import builtins, js, time
-
-def _input(prompt_text=""):
-    res = js.prompt(str(prompt_text))
-    if res is None:
-        return "0"          # 用户点取消时按 0 处理
-    return str(res)
-
-builtins.input = _input
-
 _orig_sleep = time.sleep
+def _input(prompt_text=""):
+    js.window.scrollTo(0, document.body.scrollHeight)
+    full_prompt = str(prompt_text) + "\\n\\n(若输入数字后无反应，可能是该牌当前不能打出，请换一个数字，或输入 0 结束回合)"
+    res = js.prompt(full_prompt)
+    if res is None: return "0"
+    return str(res)
+builtins.input = _input
 time.sleep = lambda s=0: _orig_sleep(min(s, 0.3))
 `);
 
-    header.textContent = '🎮 三国杀 · 输入数字后按回车（弹窗中输入）';
+    header.innerText = '🎮 三国杀 · 输入数字后按回车（弹窗中输入）';
+    btn.style.display = 'none';
 
     const code = document.getElementById('pycode').textContent;
     await pyodide.runPythonAsync(code);
@@ -287,8 +306,10 @@ time.sleep = lambda s=0: _orig_sleep(min(s, 0.3))
   } catch (e) {
     write("\n[ERROR] " + e);
     console.error(e);
+    btn.disabled = false;
+    btn.innerText = '❌ 加载失败，点击重试';
   }
-})();
+});
 </script>
 </body>
 </html>
